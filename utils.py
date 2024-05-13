@@ -600,15 +600,20 @@ class MultiCropWrapper(nn.Module):
     concatenate all the output features and run the head forward on these
     concatenated features.
     """
-    def __init__(self, backbone, head):
+    def __init__(self, backbone, head,rec_head=None):
         super(MultiCropWrapper, self).__init__()
         # disable layers dedicated to ImageNet labels classification
         backbone.fc, backbone.head = nn.Identity(), nn.Identity()
         self.backbone = backbone
         self.head = head
+        self.rec_head = rec_head
 
     def forward(self, x):
+        # print('In multicrop In',len(x),
+        #       x[0].shape
+        #       )
         # convert to list
+        
         if not isinstance(x, list):
             x = [x]
         idx_crops = torch.cumsum(torch.unique_consecutive(
@@ -617,7 +622,10 @@ class MultiCropWrapper(nn.Module):
         )[1], 0)
         start_idx, output = 0, torch.empty(0).to(x[0].device)
         for end_idx in idx_crops:
+            # print('Going to Backbone',len(x[start_idx: end_idx]))
+            # print('Backbone Input',torch.cat(x[start_idx: end_idx]).shape)
             _out = self.backbone(torch.cat(x[start_idx: end_idx]))
+            # print('After Backboe operations',_out.shape)
             # The output is a tuple with XCiT model. See:
             # https://github.com/facebookresearch/xcit/blob/master/xcit.py#L404-L405
             if isinstance(_out, tuple):
@@ -626,7 +634,12 @@ class MultiCropWrapper(nn.Module):
             output = torch.cat((output, _out))
             start_idx = end_idx
         # Run the head forward on the concatenated features.
-        return self.head(output)
+        # print('After list operations',output.shape)
+        z = self.head(output)
+        # _rec_out = self.rec_head(_out[:, 1:])
+        # print('Rec Head Out',_rec_out.shape)
+        # print('In multicrop Out',z.shape)
+        return z
 
 
 def get_params_groups(model):

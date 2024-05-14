@@ -99,7 +99,7 @@ def get_args_parser():
     parser.add_argument('--freeze_last_layer', default=1, type=int, help="""Number of epochs
         during which we keep the output layer fixed. Typically doing so during
         the first epoch helps training. Try increasing this value if the loss does not decrease.""")
-    parser.add_argument("--lr", default=0.005, type=float, help="""Learning rate at the end of
+    parser.add_argument("--lr", default=0.05, type=float, help="""Learning rate at the end of
         linear warmup (highest LR used during training). The learning rate is linearly scaled
         with the batch size, and specified here for a reference batch size of 256.""")
     parser.add_argument("--warmup_epochs", default=10, type=int,
@@ -342,7 +342,8 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
             # print('Student IN',len(images))
             teacher_output , rec_t= teacher(images[:2])  # only the 2 global views pass through the teacher
             student_output , rec_s= student(corr_imgs,rec=True)
-            dino_loss_val = dino_loss(student_output, teacher_output, epoch)
+            student_output1, rec_s1 = student(images[:2])
+            dino_loss_val = dino_loss(student_output1, teacher_output, epoch)
             rloss = recons_loss(rec_s, torch.cat(images[:2]))
             r_loss = rloss[torch.cat(masks[0:])==1].mean() 
             loss = dino_loss_val + r_loss
@@ -380,6 +381,8 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
         # logging
         torch.cuda.synchronize()
         metric_logger.update(loss=loss.item())
+        metric_logger.update(dino_loss_val=dino_loss_val.item())
+        metric_logger.update(r_loss = r_loss.item())
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
         metric_logger.update(wd=optimizer.param_groups[0]["weight_decay"])
     # gather the stats from all processes

@@ -313,6 +313,6 @@ class RECHead(nn.Module):
         x_rec = x.transpose(1, 2)
         out_sz = tuple( (  int(math.sqrt(x_rec.size()[2]))  ,   int(math.sqrt(x_rec.size()[2])) ) )
         x_rec = self.convTrans(x_rec.unflatten(2, out_sz))
-                
+        # print('Rec Out',x_rec.shape)
                 
         return x_rec

@@ -608,7 +608,7 @@ class MultiCropWrapper(nn.Module):
         self.head = head
         self.rec_head = rec_head
 
-    def forward(self, x):
+    def forward(self, x,rec = False):
         # print('In multicrop In',len(x),
         #       x[0].shape
         #       )
@@ -636,10 +636,10 @@ class MultiCropWrapper(nn.Module):
         # Run the head forward on the concatenated features.
         # print('After list operations',output.shape)
         z = self.head(output)
-        # _rec_out = self.rec_head(_out[:, 1:])
+        _rec_out = self.rec_head(_out[:, 1:]) if rec == True else None
         # print('Rec Head Out',_rec_out.shape)
         # print('In multicrop Out',z.shape)
-        return z
+        return z,_rec_out
 
 
 def get_params_groups(model):

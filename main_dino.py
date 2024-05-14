@@ -99,12 +99,12 @@ def get_args_parser():
     parser.add_argument('--freeze_last_layer', default=1, type=int, help="""Number of epochs
         during which we keep the output layer fixed. Typically doing so during
         the first epoch helps training. Try increasing this value if the loss does not decrease.""")
-    parser.add_argument("--lr", default=0.05, type=float, help="""Learning rate at the end of
+    parser.add_argument("--lr", default=0.001, type=float, help="""Learning rate at the end of
         linear warmup (highest LR used during training). The learning rate is linearly scaled
         with the batch size, and specified here for a reference batch size of 256.""")
     parser.add_argument("--warmup_epochs", default=10, type=int,
         help="Number of epochs for the linear learning-rate warm up.")
-    parser.add_argument('--min_lr', type=float, default=1e-5, help="""Target LR at the
+    parser.add_argument('--min_lr', type=float, default=1e-6, help="""Target LR at the
         end of optimization. We use a cosine LR schedule with linear warmup.""")
     parser.add_argument('--optimizer', default='adamw', type=str,
         choices=['adamw', 'sgd', 'lars'], help="""Type of optimizer. We recommend using adamw with ViTs.""")
@@ -126,7 +126,7 @@ def get_args_parser():
     # Misc
     parser.add_argument('--data_path', default='/path/to/imagenet/train/', type=str,
         help='Please specify path to the ImageNet training data.')
-    parser.add_argument('--output_dir', default="./output_dino/", type=str, help='Path to save logs and checkpoints.')
+    parser.add_argument('--output_dir', default="./output_dino1/", type=str, help='Path to save logs and checkpoints.')
     parser.add_argument('--saveckp_freq', default=20, type=int, help='Save checkpoint every x epochs.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.add_argument('--num_workers', default=10, type=int, help='Number of data loading workers per GPU.')
@@ -342,7 +342,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
             # print('Student IN',len(images))
             teacher_output , rec_t= teacher(images[:2])  # only the 2 global views pass through the teacher
             student_output , rec_s= student(corr_imgs,rec=True)
-            student_output1, rec_s1 = student(images[:2])
+            student_output1, rec_s1 = student(images)
             dino_loss_val = dino_loss(student_output1, teacher_output, epoch)
             rloss = recons_loss(rec_s, torch.cat(images[:2]))
             r_loss = rloss[torch.cat(masks[0:])==1].mean() 
@@ -413,7 +413,7 @@ class DINOLoss(nn.Module):
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
         student_out = student_output / self.student_temp
-        student_out = student_out.chunk(self.ncrops)
+        student_out = student_out.chunk(2)
         # print('Student Out',len(student_out))
         # teacher centering and sharpening
         temp = self.teacher_temp_schedule[epoch]

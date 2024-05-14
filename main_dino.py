@@ -67,7 +67,7 @@ def get_args_parser():
     parser.add_argument('--momentum_teacher', default=0.996, type=float, help="""Base EMA
         parameter for teacher update. The value is increased to 1 during training with cosine schedule.
         We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256.""")
-    parser.add_argument('--use_bn_in_head', default=True, type=utils.bool_flag,
+    parser.add_argument('--use_bn_in_head', default=False, type=utils.bool_flag,
         help="Whether to use batch normalizations in projection head (Default: False)")
 
     # Temperature teacher parameters

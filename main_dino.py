@@ -58,7 +58,7 @@ def get_args_parser():
     parser.add_argument('--drop_only', type=int, default=1, help='Align drop with patches')
 
     # For Dino Head
-    parser.add_argument('--out_dim', default=8192, type=int, help="""Dimensionality of
+    parser.add_argument('--out_dim', default=4096, type=int, help="""Dimensionality of
         the DINO head output. For complex and large datasets large values (like 65k) work well.""")
     parser.add_argument('--norm_last_layer', default=True, type=utils.bool_flag,
         help="""Whether or not to weight normalize the last layer of the DINO head.
@@ -67,7 +67,7 @@ def get_args_parser():
     parser.add_argument('--momentum_teacher', default=0.996, type=float, help="""Base EMA
         parameter for teacher update. The value is increased to 1 during training with cosine schedule.
         We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256.""")
-    parser.add_argument('--use_bn_in_head', default=False, type=utils.bool_flag,
+    parser.add_argument('--use_bn_in_head', default=True, type=utils.bool_flag,
         help="Whether to use batch normalizations in projection head (Default: False)")
 
     # Temperature teacher parameters
@@ -341,9 +341,10 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
         with torch.cuda.amp.autocast(fp16_scaler is not None):
             # print('Student IN',len(images))
             teacher_output , rec_t= teacher(images[:2])  # only the 2 global views pass through the teacher
+            
             student_output , rec_s= student(corr_imgs,rec=True)
-            student_output1, rec_s1 = student(images)
-            dino_loss_val = dino_loss(student_output1, teacher_output, epoch)
+            # print('Student Out',student_output1.shape)
+            dino_loss_val = dino_loss(student_output, teacher_output, epoch)
             rloss = recons_loss(rec_s, torch.cat(images[:2])) # we are putting only 2 global views
             r_loss = rloss[torch.cat(masks[0:])==1].mean() 
             loss = dino_loss_val + r_loss
@@ -427,7 +428,10 @@ class DINOLoss(nn.Module):
             for v in range(len(student_out)):
                 if v == iq:
                     # we skip cases where student and teacher operate on the same view
+                    # print(v,'Skipping Same view')
                     continue
+                # else:
+                    # print(v,'Not Skipping')
                 # print('Q',q.shape)
                 # print('Student Current Out',student_out[v].shape)
                 loss = torch.sum(-q * F.log_softmax(student_out[v], dim=-1), dim=-1)

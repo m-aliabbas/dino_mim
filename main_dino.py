@@ -126,7 +126,7 @@ def get_args_parser():
     # Misc
     parser.add_argument('--data_path', default='/path/to/imagenet/train/', type=str,
         help='Please specify path to the ImageNet training data.')
-    parser.add_argument('--output_dir', default="./output_dino1/", type=str, help='Path to save logs and checkpoints.')
+    parser.add_argument('--output_dir', default="./output_dino_changed/", type=str, help='Path to save logs and checkpoints.')
     parser.add_argument('--saveckp_freq', default=20, type=int, help='Save checkpoint every x epochs.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.add_argument('--num_workers', default=10, type=int, help='Number of data loading workers per GPU.')
@@ -344,7 +344,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
             student_output , rec_s= student(corr_imgs,rec=True)
             student_output1, rec_s1 = student(images)
             dino_loss_val = dino_loss(student_output1, teacher_output, epoch)
-            rloss = recons_loss(rec_s, torch.cat(images[:2]))
+            rloss = recons_loss(rec_s, torch.cat(images[:2])) # we are putting only 2 global views
             r_loss = rloss[torch.cat(masks[0:])==1].mean() 
             loss = dino_loss_val + r_loss
 

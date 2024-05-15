@@ -255,43 +255,73 @@ def vit_base(patch_size=16, **kwargs):
 
 
 class DINOHead(nn.Module):
+    """
+    DINO Head for self-supervised learning.
+    
+    Args:
+        in_dim (int): Input dimension.
+        out_dim (int): Output dimension.
+        use_bn (bool, optional): Whether to use BatchNorm. Default is False.
+        norm_last_layer (bool, optional): Whether to normalize the last layer. Default is True.
+        nlayers (int, optional): Number of layers in the MLP. Default is 3.
+        hidden_dim (int, optional): Hidden dimension of the MLP. Default is 2048.
+        bottleneck_dim (int, optional): Bottleneck dimension of the MLP. Default is 256.
+    """
     def __init__(self, in_dim, out_dim, use_bn=False, norm_last_layer=True, nlayers=3, hidden_dim=2048, bottleneck_dim=256):
         super().__init__()
-        nlayers = max(nlayers, 1)
+        nlayers = max(nlayers, 1)  # Ensure there is at least one layer
         if nlayers == 1:
-            self.mlp = nn.Linear(in_dim, bottleneck_dim)
+            self.mlp = nn.Linear(in_dim, bottleneck_dim)  # Single linear layer
         else:
-            layers = [nn.Linear(in_dim, hidden_dim)]
+            layers = [nn.Linear(in_dim, hidden_dim)]  # First layer: input to hidden dimension
             if use_bn:
-                layers.append(nn.BatchNorm1d(hidden_dim))
-            layers.append(nn.GELU())
+                layers.append(nn.BatchNorm1d(hidden_dim))  # Optional BatchNorm
+            layers.append(nn.GELU())  # Activation function
             for _ in range(nlayers - 2):
-                layers.append(nn.Linear(hidden_dim, hidden_dim))
+                layers.append(nn.Linear(hidden_dim, hidden_dim))  # Hidden layers
                 if use_bn:
-                    layers.append(nn.BatchNorm1d(hidden_dim))
-                layers.append(nn.GELU())
-            layers.append(nn.Linear(hidden_dim, bottleneck_dim))
-            self.mlp = nn.Sequential(*layers)
-        self.apply(self._init_weights)
+                    layers.append(nn.BatchNorm1d(hidden_dim))  # Optional BatchNorm
+                layers.append(nn.GELU())  # Activation function
+            layers.append(nn.Linear(hidden_dim, bottleneck_dim))  # Final layer: hidden to bottleneck dimension
+            self.mlp = nn.Sequential(*layers)  # Combine layers into a sequential model
+        self.apply(self._init_weights)  # Initialize weights
+        
+        # Last layer with weight normalization
         self.last_layer = nn.utils.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias=False))
-        self.last_layer.weight_g.data.fill_(1)
-        # if norm_last_layer:
-        self.last_layer.weight_g.requires_grad = False
+        self.last_layer.weight_g.data.fill_(1)  # Initialize the weights
+        if norm_last_layer:
+            self.last_layer.weight_g.requires_grad = False  # Optionally freeze the weight normalization
 
     def _init_weights(self, m):
+        """
+        Initialize the weights of the layers.
+        
+        Args:
+            m (nn.Module): The module to initialize.
+        """
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+            trunc_normal_(m.weight, std=.02)  # Initialize weights with truncated normal distribution
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)  # Initialize biases to 0
 
     def forward(self, x):
-        # print('DINO IN',x.shape)
-        x = self.mlp(x)
-        # print('DINO MID',x.shape)
-        x = nn.functional.normalize(x, dim=-1, p=2)
-        # print(' DIno MID 2',x.shape)
-        x = self.last_layer(x)
-        # print('DINO Last',x.shape)
-        # print('DINo OUT',x[:,0].shape)
-        # print('DINO OUT',x.shape)
-        return x[:, 0]
+        """
+        Forward pass of the DINO head.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_dim).
+        
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_dim).
+        """
+        # print('DINO IN', x.shape)
+        x = x[:, 0]
+        x = self.mlp(x)  # Pass Class token through MLP
+        # print('DINO MID', x.shape)
+        x =  nn.functional.normalize(x, dim=-1, p=2)  # Normalize the output
+        # print('DINO MID 2', x.shape)
+        x = self.last_layer(x)  # Pass through the last layer with weight normalization
+        # print('DINO Last', x.shape)
+        # print('DINO OUT', x[:, 0].shape)
+        # print('DINO OUT', x.shape)
+        return x # Return the first element of the output tensor

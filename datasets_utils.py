@@ -23,6 +23,16 @@ from torchvision import transforms
 
 
 def buildLabelIndex(labels):
+    """
+    This function builds an index for labels. It creates a dictionary where the keys are the unique labels 
+    and the values are lists of indices where each label appears in the input list.
+
+    Args:
+        labels (list): A list of labels.
+
+    Returns:
+        dict: A dictionary with labels as keys and lists of indices as values.
+    """
     label2inds = {}
     for idx, label in enumerate(labels):
         if label not in label2inds:
@@ -33,81 +43,171 @@ def buildLabelIndex(labels):
 
 
 def getItem(idx, X, target = None, transform=None, training_mode = 'SSL'):
+    """
+    This function applies a transformation to the input data if a transform function is provided and returns the data along with the target.
+
+    Parameters:
+    idx (int): Index of the item to be retrieved.
+    X (array-like): Input data.
+    target (array-like, optional): Target data. Default is None.
+    transform (callable, optional): A function/transform that takes in an array-like and returns a transformed version. Default is None.
+    training_mode (str, optional): Mode of training. Default is 'SSL'.
+
+    Returns:
+    tuple: Transformed input data and target.
+    """
     if transform is not None:
         X = transform(X)
 
     return X, target
 
-
+import torchvision.transforms as tf
+from PIL import Image
 
 class myRandCrop(tf.RandomResizedCrop):
+    """
+    Custom random resized crop transformation that returns the cropped image
+    along with the crop coordinates.
+
+    Args:
+        size (int or tuple): Desired output size of the crop. If size is an int
+            instead of tuple like (h, w), a square output size (size, size) is
+            made.
+        scale (tuple of float): Specifies the lower and upper bounds for the
+            random area of the crop, before resizing. Default is (0.08, 1.0).
+        ratio (tuple of float): Specifies the lower and upper bounds for the
+            random aspect ratio of the crop, before resizing. Default is (3/4, 4/3).
+        interpolation (int): Desired interpolation enum defined by `PIL.Image`.
+            Default is `PIL.Image.BILINEAR`.
+    """
     def __init__(self, size, scale=(0.08, 1.0), ratio=(3. / 4., 4. / 3.), interpolation=Image.BILINEAR):
         super(myRandCrop, self).__init__(size, scale, ratio, interpolation)
         
     def forward(self, img):
-        i, j, h, w = self.get_params(img, self.scale, self.ratio)
+        """
+        Apply the random resized crop transformation to the image and return
+        the cropped image along with the crop coordinates.
+
+        Args:
+            img (PIL Image or Tensor): Input image to be cropped and resized.
+
+        Returns:
+            (PIL Image or Tensor, tuple): Tuple containing the cropped and resized image
+            and a tuple with the crop coordinates (i, j, h, w).
+
+            i,j is start,end
+        """
+        i, j, h, w = self.get_params(img, self.scale, self.ratio)  # Get the parameters for the crop
         return tf.functional.resized_crop(img, i, j, h, w, self.size, self.interpolation), (i, j, h, w)
-   
+
+
 class myRandomHorizontalFlip(tf.RandomHorizontalFlip):
+    """
+    Custom random horizontal flip transformation that returns the flipped image
+    along with a flag indicating whether the image was flipped.
+
+    Args:
+        p (float): Probability of the image being flipped. Default is 0.5.
+    """
     def __init__(self, p=0.5):
         super(myRandomHorizontalFlip, self).__init__(p=p)
         
     def forward(self, img):
-        if torch.rand(1) < self.p:
-            return tf.functional.hflip(img), 1
-        return img, 0
+        """
+        Apply the random horizontal flip transformation to the image and return
+        the flipped image along with a flag indicating whether the image was flipped.
+
+        Args:
+            img (PIL Image or Tensor): Input image to be possibly flipped.
+
+        Returns:
+            (PIL Image or Tensor, int): Tuple containing the possibly flipped image
+            and an integer flag (1 if the image was flipped, 0 otherwise).
+        """
+        if torch.rand(1) < self.p:  # Draw a random number and check if it's less than p
+            return tf.functional.hflip(img), 1  # Flip the image horizontally and return 1
+        return img, 0  # Return the original image and 0
+
     
     
 class GaussianBlur(object):
     """
     Apply Gaussian Blur to the PIL image.
+
+    Args:
+        p (float): Probability of applying the Gaussian Blur. Default is 0.5.
+        radius_min (float): Minimum radius for the Gaussian Blur. Default is 0.1.
+        radius_max (float): Maximum radius for the Gaussian Blur. Default is 2.0.
     """
     def __init__(self, p=0.5, radius_min=0.1, radius_max=2.):
-        self.prob = p
-        self.radius_min = radius_min
-        self.radius_max = radius_max
+        self.prob = p  # Probability of applying the Gaussian Blur
+        self.radius_min = radius_min  # Minimum radius for the blur
+        self.radius_max = radius_max  # Maximum radius for the blur
 
     def __call__(self, img):
+        """
+        Apply Gaussian Blur to the image with a certain probability.
+
+        Args:
+            img (PIL Image): Input image to be possibly blurred.
+
+        Returns:
+            PIL Image: The possibly blurred image.
+        """
+        # Determine if the blur should be applied
         do_it = random.random() <= self.prob
         if not do_it:
-            return img
+            return img  # Return the original image if not applying the blur
 
+        # Apply Gaussian Blur with a random radius between radius_min and radius_max
         return img.filter(
             ImageFilter.GaussianBlur(
                 radius=random.uniform(self.radius_min, self.radius_max)
             )
         )
-    
 
 class Solarization(object):
     """
     Apply Solarization to the PIL image.
+
+    Args:
+        p (float): Probability of applying solarization.
     """
     def __init__(self, p):
-        self.p = p
+        self.p = p  # Probability of applying solarization
 
     def __call__(self, img):
+        """
+        Apply solarization to the image with a certain probability.
+
+        Args:
+            img (PIL Image): Input image.
+
+        Returns:
+            PIL Image: Solarized image if the probability condition is met, otherwise the original image.
+        """
+        # Check if solarization should be applied based on the probability
         if random.random() < self.p:
-            return ImageOps.solarize(img)
+            return ImageOps.solarize(img)  # Apply solarization
         else:
-            return img
-        
+            return img  # Return the original image
 
 
 
-def distort_images(samples, masks, drop_rep, drop_align):
+
+# def distort_images(samples, masks, drop_rep, drop_align):
     
-    B = samples.size()[0] 
-    samples_aug = samples.detach().clone()
-    for i in range(B):
-        idx_rnd = randint(0, B)
-        if idx_rnd != i:
-            samples_aug[i], masks[i] = replace_rand_patches(samples[i].detach().clone(), 
-                                                  X_rep = samples_aug[idx_rnd],
-                                                  mask = masks[i],
-                                                  max_replace=drop_rep, align=drop_align)
+#     B = samples.size()[0] 
+#     samples_aug = samples.detach().clone()
+#     for i in range(B):
+#         idx_rnd = randint(0, B)
+#         if idx_rnd != i:
+#             samples_aug[i], masks[i] = replace_rand_patches(samples[i].detach().clone(), 
+#                                                   X_rep = samples_aug[idx_rnd],
+#                                                   mask = masks[i],
+#                                                   max_replace=drop_rep, align=drop_align)
       
-    return samples_aug, masks
+#     return samples_aug, masks
 
 
 
@@ -128,22 +228,36 @@ def GMML_replace_list(samples, corrup_prev, masks_prev, drop_type='noise', max_r
     return samples_aug, masks
 
 def GMML_drop_rand_patches(X, X_rep=None, drop_type='noise', max_replace=0.7, align=16, max_block_sz=0.3):
-    #######################
-    # max_replace: percentage of image to be replaced
-    # align: align corruption with the patch sizes
-    # max_block_sz: percentage of the maximum block to be dropped
-    #######################
-   
+    """
+    Randomly drops patches in the input tensor X and replaces them with noise, zeros, or patches from X or X_rep.
+    
+    Args:
+        X (torch.Tensor): Input tensor of shape (C, H, W) where C is the number of channels, H is the height, and W is the width.
+        X_rep (torch.Tensor, optional): Replacement tensor of the same shape as X. If provided, patches from X_rep are used for replacement. Default is None.
+        drop_type (str, optional): Type of drop replacement. Can be 'noise', 'zeros', or 'rand'. Default is 'noise'.
+        max_replace (float, optional): Maximum percentage of the image to be replaced. Default is 0.7.
+        align (int, optional): Alignment for the patch sizes. Default is 16.
+        max_block_sz (float, optional): Maximum size of the block to be dropped as a percentage of the image size. Default is 0.3.
+        
+    Returns:
+        torch.Tensor: Tensor with patches dropped and replaced.
+        torch.Tensor: Mask tensor indicating which parts of the image were replaced.
+    """
     np.random.seed()    
-    C, H, W = X.size()
-    n_drop_pix = np.random.uniform(min(0.5, max_replace), max_replace)*H*W
-    mx_blk_height = int(H*max_block_sz)
-    mx_blk_width = int(W*max_block_sz)
+    C, H, W = X.size()  # Get the dimensions of the input tensor
     
-    align = max(1, align)
+    # Calculate the number of pixels to drop
+    n_drop_pix = np.random.uniform(min(0.5, max_replace), max_replace) * H * W
     
-    mask = torch.zeros_like(X)
-    drop_t = np.random.choice(drop_type.split('-'))
+    # Calculate the maximum block height and width to be dropped
+    mx_blk_height = int(H * max_block_sz)
+    mx_blk_width = int(W * max_block_sz)
+    
+    align = max(1, align)  # Ensure alignment is at least 1
+    
+    mask = torch.zeros_like(X)  # Initialize the mask tensor
+    drop_t = np.random.choice(drop_type.split('-'))  # Choose the drop type
+    
     
     while mask[0].sum() < n_drop_pix:
         

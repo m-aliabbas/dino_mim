@@ -343,7 +343,7 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss,recons_loss
             teacher_output , rec_t= teacher(images[:2])  # only the 2 global views pass through the teacher
             
             student_output , rec_s= student(corr_imgs,rec=True)
-            # print('Student Out',student_output1.shape)
+            # print('Student Out',student_output.shape)
             dino_loss_val = dino_loss(student_output, teacher_output, epoch)
             rloss = recons_loss(rec_s, torch.cat(images[:2])) # we are putting only 2 global views
             r_loss = rloss[torch.cat(masks[0:])==1].mean() 
